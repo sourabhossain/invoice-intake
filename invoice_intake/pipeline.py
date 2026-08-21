@@ -114,7 +114,7 @@ def _process_one(
             result.error = "DUPLICATE_INVOICE"
             print(
                 f"  DUPLICATE: {extracted.invoice_number} is already registered "
-                f"for {partner_code} — not posted"
+                f"for {partner_code}, not posted"
             )
         elif review_reasons:
             result.error = review_reasons[0].split(":", 1)[0]
@@ -169,7 +169,7 @@ def _register(
     else:
         result.status = "failed"
         result.error = f"{code}: {message}"
-        print(f"  FAILED: {code} — {message} {error.get('details') or ''}")
+        print(f"  FAILED: {code}: {message} {error.get('details') or ''}")
 
 
 def process_invoices(

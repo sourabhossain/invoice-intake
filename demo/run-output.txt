@@ -14,6 +14,7 @@ Cleared 0 previously registered invoice(s).
 
 --- invoice_03.pdf ---
   REVIEW: held for human check
+    [error] PARTNER_MATCH_UNCERTAIN: '東京アーズ株式会社' -> P-1003 via fuzzy_suggestion=東京フーズ株式会社 (similarity 0.80)
     [error] TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
     [warning] EXTRACTED_TOTALS_INCONSISTENT: Figures read from the invoice do not add up: 115340 + 6067 != 125357
 
@@ -30,11 +31,11 @@ Cleared 0 previously registered invoice(s).
   REGISTERED: ACC-0005
 
 --- invoice_07.jpg ---
-  DUPLICATE: YM-2026-0107 is already registered for P-1001 — not posted
+  DUPLICATE: YM-2026-0107 is already registered for P-1001, not posted
 
 --- invoice_08.jpg ---
   REVIEW: held for human check
-    [error] PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered — confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
+    [error] PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered. Confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
 
 --- invoice_09.pdf ---
   REVIEW: held for human check
@@ -46,7 +47,7 @@ Cleared 0 previously registered invoice(s).
 
 --- invoice_11.jpg ---
   REVIEW: held for human check
-    [error] ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old — likely an era-year or digit misread
+    [error] ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old, likely an era-year or digit misread
     [warning] DATE_NUMBER_DISAGREEMENT: issue_date 2020-02-05 disagrees with the date implied by invoice_number 'SATO-260205' ([(2026, 2)])
 
 --- invoice_12.jpg ---
@@ -59,16 +60,17 @@ Cleared 0 previously registered invoice(s).
   needs_review  5
 
 === Not registered ===
-  invoice_03.pdf [needs_review] TAX_MISMATCH
+  invoice_03.pdf [needs_review] PARTNER_MATCH_UNCERTAIN
+      - PARTNER_MATCH_UNCERTAIN: '東京アーズ株式会社' -> P-1003 via fuzzy_suggestion=東京フーズ株式会社 (similarity 0.80)
       - TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
   invoice_07.jpg [duplicate] DUPLICATE_INVOICE
   invoice_08.jpg [needs_review] PAYMENT_DETAILS_ALTERED
-      - PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered — confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
+      - PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered. Confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
   invoice_09.pdf [needs_review] TOTAL_MISMATCH
       - TOTAL_MISMATCH: Extracted total 147497 != 147496 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
   invoice_10.jpg [needs_review] PARTNER_NOT_FOUND
       - PARTNER_NOT_FOUND: '新星ロジスティクス株式会社' (no_match)
   invoice_11.jpg [needs_review] ISSUE_DATE_IMPLAUSIBLE
-      - ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old — likely an era-year or digit misread
+      - ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old, likely an era-year or digit misread
 
 Details saved to /Users/sourab/Downloads/take-home/output/

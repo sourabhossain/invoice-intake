@@ -71,7 +71,7 @@ SYSTEM_PROMPT = """You extract structured data from Japanese business invoices (
 Rules:
 - Return integer yen amounts only (no decimals, no currency symbols).
 - Discounts shown with △ or minus are negative integers (e.g. △30,000 -> -30000).
-- Dates may use YYYY/MM/DD, YYYY-MM-DD, YYYY年M月D日, or 令和N年M月D日 — return as printed.
+- Dates may use YYYY/MM/DD, YYYY-MM-DD, YYYY年M月D日, or 令和N年M月D日. Return as printed.
 - tax_rate_percent must be 10 or 8 for each line item (use the rate shown per line).
 - If quantity or unit price is missing on the invoice, use null.
 - supplier_name is the issuer/seller (請求元), not the recipient (御中).

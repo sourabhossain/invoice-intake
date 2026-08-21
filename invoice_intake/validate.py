@@ -164,7 +164,7 @@ def _check_dates(invoice: ExtractedInvoice, today: date) -> list[VerificationIss
         issues.append(
             _error(
                 "ISSUE_DATE_IMPLAUSIBLE",
-                f"issue_date {issue_date} is more than {max_age} days old — "
+                f"issue_date {issue_date} is more than {max_age} days old, "
                 "likely an era-year or digit misread",
             )
         )
@@ -194,7 +194,7 @@ def _check_payment_integrity(invoice: ExtractedInvoice) -> list[VerificationIssu
     return [
         _error(
             "PAYMENT_DETAILS_ALTERED",
-            "Bank/transfer details appear hand-altered — confirm with the supplier "
+            "Bank/transfer details appear hand-altered. Confirm with the supplier "
             f"through a known channel before paying.{detail}",
         )
     ]
@@ -235,7 +235,7 @@ def verify_extraction(
             _error(
                 "SUBTOTAL_MISMATCH",
                 f"Extracted subtotal {invoice.subtotal} != sum of line amounts "
-                f"{computed_subtotal} — the line items were probably misread",
+                f"{computed_subtotal}, so the line items were probably misread",
             )
         )
 
