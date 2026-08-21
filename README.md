@@ -18,11 +18,15 @@ cp .env.example .env
 python3 run.py --reset
 ```
 
+Step 1's `source .venv/bin/activate` is per-shell — a new terminal needs it again.
+Without it `run.py` exits with the exact commands to run rather than an import
+traceback, so this is recoverable, not fatal.
+
 `run.py` will:
 1. Start `accounting_api.py` if it is not already running
 2. Extract data from all files in `invoices/`
-3. Verify line math and totals (matching the API's tax rules)
-4. Match suppliers to partner master
+3. Verify amounts, dates, payee and payment integrity (see below)
+4. Match suppliers to partner master, and skip duplicates
 5. POST each valid invoice to `http://localhost:8080/invoices`
 6. Save per-invoice JSON and a summary under `output/`
 

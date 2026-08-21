@@ -4,18 +4,66 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent
+API_SCRIPT = ROOT / "accounting_api.py"
+
+# module name -> pip package name
+REQUIREMENTS = {
+    "httpx": "httpx",
+    "openai": "openai",
+    "pymupdf": "pymupdf",
+    "dotenv": "python-dotenv",
+}
+
+
+def check_dependencies() -> None:
+    """Fail with instructions rather than a traceback from a deep import."""
+    missing = [
+        package
+        for module, package in REQUIREMENTS.items()
+        if importlib.util.find_spec(module) is None
+    ]
+    if not missing:
+        return
+
+    activate = "source .venv/bin/activate"
+    if sys.platform == "win32":
+        activate = r".venv\Scripts\activate"
+
+    command = f"python3 {Path(__file__).name} {' '.join(sys.argv[1:])}".rstrip()
+    print(f"Missing required package(s): {', '.join(missing)}\n", file=sys.stderr)
+
+    if (ROOT / ".venv").is_dir():
+        print(
+            "This project has a virtualenv that is not active. Run:\n"
+            f"  {activate}\n"
+            f"  {command}",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "Set up the environment first:\n"
+            "  python3 -m venv .venv\n"
+            f"  {activate}\n"
+            "  pip install -r requirements.txt\n"
+            f"  {command}",
+            file=sys.stderr,
+        )
+    raise SystemExit(1)
+
+
+check_dependencies()
+
 import httpx
 
 from invoice_intake.config import get_settings
 from invoice_intake.pipeline import process_invoices
-
-ROOT = Path(__file__).resolve().parent
-API_SCRIPT = ROOT / "accounting_api.py"
 
 
 def api_is_up(url: str) -> bool:
