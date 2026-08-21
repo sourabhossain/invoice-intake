@@ -1,8 +1,8 @@
 # Submission
 
-- Name:
-- Submission date (YYYY-MM-DD):
-- Hours actually spent:
+- Name: Sourab Hossain
+- Submission date (YYYY-MM-DD): 2026-08-21
+- Hours actually spent: 8
 - Repository / how to run it: `python3 run.py --reset` (see README.md)
 
 ## 1. Understanding the request
