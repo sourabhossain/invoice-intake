@@ -1,11 +1,6 @@
-"""Checks on the verification layer, run with: python3 -m unittest discover tests
-
-Covers the failure modes that must never reach the accounting API, including the
-three that were silently registered or crashed the run before.
-"""
-
 from __future__ import annotations
 
+import os
 import unittest
 from datetime import date
 
@@ -14,6 +9,20 @@ from invoice_intake.partner import match_partner, normalize_date, tax_rate_to_co
 from invoice_intake.validate import verify_extraction
 
 TODAY = date(2026, 8, 21)
+
+WINDOW_ENV = ("INVOICE_MAX_AGE_DAYS", "INVOICE_MAX_FUTURE_DAYS")
+_saved_env: dict[str, str] = {}
+
+
+def setUpModule():
+    for name in WINDOW_ENV:
+        if name in os.environ:
+            _saved_env[name] = os.environ.pop(name)
+
+
+def tearDownModule():
+    os.environ.update(_saved_env)
+
 
 PARTNERS = [
     {
@@ -90,7 +99,6 @@ class AmountChecks(unittest.TestCase):
         )
 
     def test_mixed_tax_rates_are_floored_per_code(self):
-        # 103,200 @ 8% -> 8,256 and 6,800 @ 10% -> 680, as invoice_08 prints.
         result = verify_extraction(
             invoice(
                 lines=[line(103_200, rate=8), line(6_800, rate=10)],
@@ -111,7 +119,6 @@ class AmountChecks(unittest.TestCase):
         self.assertIn("SUBTOTAL_MISMATCH", codes(result))
 
     def test_partial_tax_row_is_caught(self):
-        """invoice_03: only one of two 消費税 rows was captured."""
         result = verify_extraction(
             invoice(
                 lines=[line(75_840, rate=8), line(39_500, rate=10)],
@@ -126,7 +133,6 @@ class AmountChecks(unittest.TestCase):
         self.assertIn("EXTRACTED_TOTALS_INCONSISTENT", codes(result))
 
     def test_off_by_one_printed_total_is_caught(self):
-        """invoice_09: extraction correct, the invoice's own total is ¥1 out."""
         result = verify_extraction(
             invoice(
                 lines=[line(101_121), line(32_967)],
@@ -159,7 +165,6 @@ class AmountChecks(unittest.TestCase):
 
 class DateChecks(unittest.TestCase):
     def test_era_year_misread_is_caught(self):
-        """invoice_11: 令和8年 read as 令和5年 -> 2023, all amounts still reconcile."""
         result = verify_extraction(
             invoice(issue="2023-02-05", due="2023-03-31", number="SATO-260205"),
             today=TODAY,
@@ -204,7 +209,6 @@ class DateChecks(unittest.TestCase):
 
 class PaymentIntegrityChecks(unittest.TestCase):
     def test_flag_blocks_a_clean_invoice(self):
-        """invoice_08: every amount reconciles; the payee account does not."""
         result = verify_extraction(invoice(altered=True), today=TODAY)
         self.assertFalse(result.passed)
         self.assertIn("PAYMENT_DETAILS_ALTERED", codes(result))
@@ -262,13 +266,11 @@ class PartnerMatching(unittest.TestCase):
         self.assertFalse(review)
 
     def test_short_overlap_is_refused(self):
-        # "みらいIT" must not bind on a two-character latin overlap alone.
         code, _, review = match_partner(PARTNERS, "IT株式会社", None)
         self.assertIsNone(code)
         self.assertTrue(review)
 
     def test_one_character_misread_becomes_a_review_suggestion(self):
-        """invoice_03: 東京フーズ read as 東京アーズ."""
         code, reason, review = match_partner(PARTNERS, "東京アーズ株式会社", None)
         self.assertEqual(code, "P-1003")
         self.assertTrue(review, "a fuzzy suggestion must never auto-register")

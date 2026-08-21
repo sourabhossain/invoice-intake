@@ -5,18 +5,15 @@ import re
 import unicodedata
 from typing import Any
 
-# Short overlaps like "IT" or "東京" can bind an invoice to the wrong payee.
 MIN_PARTIAL_MATCH_CHARS = 4
 FUZZY_SUGGEST_RATIO = 0.8
 
-# western year = base + era year, so 令和1年 -> 2019.
 ERA_BASE = {"令和": 2018, "R": 2018, "平成": 1988, "H": 1988, "昭和": 1925, "S": 1925}
 
 _LEGAL_FORMS = ("株式会社", "有限会社", "合同会社", "（株）", "(株)", "（有）", "(有)")
 
 
 def _normalize(text: str) -> str:
-    # NFKC folds full-width characters so "ＩＴ" and "IT" compare equal.
     text = unicodedata.normalize("NFKC", text).strip()
     for ch in (" ", "　", *_LEGAL_FORMS):
         text = text.replace(ch, "")
@@ -28,11 +25,6 @@ def match_partner(
     supplier_name: str,
     registration_no: str | None,
 ) -> tuple[str | None, str, bool]:
-    """Return (partner_code, match_reason, needs_review).
-
-    needs_review is True unless the match came from a registration number or an
-    exact name, so a human confirms the payee before anything is registered.
-    """
     if registration_no:
         normalized_reg = _normalize(registration_no)
         for partner in partners:
@@ -73,7 +65,6 @@ def match_partner(
 def suggest_partner(
     partners: list[dict[str, Any]], supplier_name: str
 ) -> tuple[str, str, float] | None:
-    """Closest partner above the near-miss threshold, for review only."""
     normalized_supplier = _normalize(supplier_name)
     if not normalized_supplier:
         return None
@@ -88,8 +79,6 @@ def suggest_partner(
 
 
 def tax_rate_to_code(rate_percent: int) -> str | None:
-    """Tax code for a percentage, or None so an odd rate becomes a reported
-    verification error rather than a crashed invoice."""
     if rate_percent == 8:
         return "T08"
     if rate_percent == 10:
@@ -102,11 +91,6 @@ def _to_iso(year: int, month: str, day: str) -> str:
 
 
 def normalize_date(value: str) -> str:
-    """Convert common Japanese date formats to YYYY-MM-DD.
-
-    Unrecognised input is returned unchanged; validation then reports
-    DATE_UNPARSEABLE instead of the whole invoice crashing.
-    """
     text = unicodedata.normalize("NFKC", value).strip().replace("元年", "1年")
 
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
@@ -136,11 +120,6 @@ def normalize_date(value: str) -> str:
 
 
 def dates_in_invoice_number(invoice_number: str) -> list[tuple[int, int]]:
-    """Year/month pairs implied by date-like runs in an invoice number.
-
-    Many suppliers embed the issue date (SATO-260205 -> 2026-02), which gives a
-    cross-check on the extracted date that arithmetic checks cannot provide.
-    """
     found: list[tuple[int, int]] = []
     text = unicodedata.normalize("NFKC", invoice_number)
 

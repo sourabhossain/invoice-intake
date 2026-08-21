@@ -104,7 +104,7 @@ pipeline working as designed, not errors.
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.9+ (developed and tested on 3.12)
 - OpenAI API key (GPT-4o vision; ~12 invoices, low cost)
 - Mock accounting API from `TAKE_HOME.md` (included as `accounting_api.py`)
 

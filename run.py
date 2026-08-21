@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Single entry point: start accounting API (if needed) and process invoices."""
 
 from __future__ import annotations
 
@@ -13,7 +12,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 API_SCRIPT = ROOT / "accounting_api.py"
 
-# module name -> pip package name
 REQUIREMENTS = {
     "httpx": "httpx",
     "openai": "openai",
@@ -23,7 +21,6 @@ REQUIREMENTS = {
 
 
 def check_dependencies() -> None:
-    """Fail with instructions rather than a traceback from a deep import."""
     missing = [
         package
         for module, package in REQUIREMENTS.items()
@@ -125,7 +122,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
     api_proc: subprocess.Popen | None = None
     started_api = False
 
@@ -141,13 +143,18 @@ def main() -> int:
         results = process_invoices(
             settings, reset=args.reset, dry_run=args.dry_run, only=args.only
         )
-        # Duplicates and review holds are the pipeline working as intended.
         failed = sum(1 for r in results if r.status == "failed")
         return 1 if failed else 0
+    except (RuntimeError, httpx.HTTPError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
     finally:
         if started_api and api_proc is not None:
             api_proc.terminate()
-            api_proc.wait(timeout=5)
+            try:
+                api_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                api_proc.kill()
 
 
 if __name__ == "__main__":

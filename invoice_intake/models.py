@@ -11,7 +11,7 @@ class ExtractedLine:
     unit: str
     unit_price: int | None
     amount: int
-    tax_rate_percent: int  # 10 or 8
+    tax_rate_percent: int
 
 
 @dataclass
@@ -33,7 +33,7 @@ class ExtractedInvoice:
 
 @dataclass
 class VerificationIssue:
-    severity: str  # "error" | "warning"
+    severity: str
     code: str
     message: str
 
@@ -52,8 +52,6 @@ class RegistrationResult:
     source_file: str
     invoice_number: str
     partner_code: str | None
-    # registered | duplicate | needs_review | skipped (dry run) | failed
-    # Only "failed" means the pipeline itself broke; the rest are outcomes.
     status: str
     accounting_id: str | None = None
     error: str | None = None

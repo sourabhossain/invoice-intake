@@ -219,7 +219,6 @@ class InvoiceExtractor:
             except (RateLimitError, APIConnectionError, APITimeoutError) as exc:
                 last_error = exc
             except APIStatusError as exc:
-                # Auth, quota and bad-request failures will not fix themselves.
                 if exc.status_code < 500:
                     raise
                 last_error = exc

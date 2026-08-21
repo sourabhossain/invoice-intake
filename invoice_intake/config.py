@@ -6,9 +6,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 ROOT = Path(__file__).resolve().parent.parent
+
+load_dotenv(ROOT / ".env")
+
 INVOICES_DIR = ROOT / "invoices"
 OUTPUT_DIR = ROOT / "output"
 

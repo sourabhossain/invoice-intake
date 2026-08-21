@@ -81,7 +81,10 @@ them as successes.
   `payment_details_altered` boolean, so the tampering signal is a typed field
   rather than a keyword search over prose
 - **PyMuPDF** — render scanned PDFs to images without extra dependencies
-- **httpx** — simple API client; retries with backoff on 429/5xx only
+- **httpx** — plain synchronous calls to the accounting API, deliberately with no
+  retry layer: a rejected POST there is a verdict to report, not a blip to paper
+  over. The retry-with-backoff (429, 5xx, connection and timeout errors, three
+  attempts) sits on the LLM calls instead, where transient failure is the norm
 
 **Decided against:**
 - Traditional OCR-only (Tesseract) — weak on layout variation and handwriting
@@ -141,9 +144,15 @@ Three, and they are instructive because they fail in different ways.
 2. **`invoice_03.pdf` — mixed tax rates, partially read.** The invoice has both 8%
    and 10% lines with two separate 消費税 rows (3,950 + 6,067 = 10,017). The model
    captured only the 8% row as the tax total, and separately misread the supplier
-   as 東京**ア**ーズ株式会社 (東京**フ**ーズ) while dropping the 登録番号. Caught by
-   recomputing tax from the line-level rates; the misread name now produces a
-   fuzzy suggestion (P-1003, 0.80) for the reviewer rather than a dead end.
+   as 東京**ア**ーズ株式会社 (東京**フ**ーズ). Caught by recomputing tax from the
+   line-level rates. The name misread cost nothing on the recorded run only because
+   the 登録番号 came out correct and the matcher tries it first; strip the number and
+   the same name lands on a fuzzy suggestion (P-1003, similarity 0.80) for the
+   reviewer rather than a dead end. That is the argument for layering the matcher
+   instead of trusting either field on its own, and it is not hypothetical: seven
+   of the eleven 登録番号 read off invoices from known suppliers came back as
+   digit-transposed variants of the master value, and all seven were rescued by
+   the name layer.
 
 3. **`invoice_09.pdf` — the AI was right and the invoice was wrong.** Extraction is
    exact: 小計 134,088, 消費税 13,408, 合計 147,497. But 134,088 + 13,408 = 147,**496**.
@@ -169,18 +178,20 @@ transfer details now holds the invoice unconditionally.
 No invoice was registered with data I could not verify against the document.
 
 The table below is **one representative run** (`output/summary.json` from the log in
-`demo/`). Extraction is not fully deterministic even at `temperature=0`:
-`invoice_03` sometimes reads cleanly and registers, and `invoice_11`'s misread era
-year came out as 令和5 on one run and 令和2 on another. The *verification* outcome is
-stable — what varies is which invoice needs review, not whether a bad one slips
-through. I regard that instability as the main argument for the whole checking
-layer, so I have left it visible rather than reporting a best-of run.
+`demo/`). Extraction is not fully deterministic even at `temperature=0`: on a later
+run of the same files, `invoice_03`'s 登録番号 was misread as well, so that document
+was held for a second reason (uncertain payee) on top of the tax mismatch, and
+`invoice_11`'s misread era year came out as 令和5 on one run and 令和2 on another.
+The *verification* outcome is stable — what varies is which invoice needs review,
+not whether a bad one slips through. I regard that instability as the main argument
+for the whole checking layer, so I have left it visible rather than reporting a
+best-of run.
 
 | Invoice | Result | How you handled it |
 |---|---|---|
 | invoice_01.pdf | registered `ACC-0001` | Matched P-1001 by 登録番号; amounts reconciled |
 | invoice_02.pdf | registered `ACC-0002` | 26 line items, all 10%; amounts reconciled |
-| invoice_03.pdf | **needs review** | Supplier misread (東京アーズ) → fuzzy suggestion P-1003; only one of two 消費税 rows captured, so tax 6,067 ≠ recomputed 10,017 |
+| invoice_03.pdf | **needs review** | Only one of two 消費税 rows captured, so tax 6,067 ≠ recomputed 10,017. The supplier name was misread too (東京アーズ), but the 登録番号 was right, so the payee still resolved to P-1003 |
 | invoice_04.jpg | registered `ACC-0003` | Exact name match on 有限会社佐藤商店 |
 | invoice_05.jpg | registered `ACC-0004` | Exact name match on P-1005 |
 | invoice_06.jpg | registered `ACC-0005` | Supplier printed as ヤマダ製作所; matched P-1001 by 登録番号 |
@@ -227,6 +238,12 @@ running the same invoice through two consecutive runs without `--reset`.
      create one, so onboarding stays manual.
   5. **Tampering the model does not remark on.** A subtle alteration that it reads
      as clean print bypasses the payment-integrity gate entirely.
+  6. **登録番号 misreads.** Seven of the eleven registration numbers read off
+     invoices from known suppliers were digit-transposed variants of the master
+     value, so the name layer is carrying more of the matching than the number
+     layer is. A misread that happened to equal *another* partner's number would
+     bind the invoice to the wrong payee without asking anyone — vanishingly
+     unlikely across five partners and 14-digit numbers, worth guarding at 500.
 - **How you would find out if something was registered incorrectly:** a daily
   reconciliation job re-reading `output/*.json` against `GET /invoices`, alerting on
   any field drift; a weekly sample of registered invoices re-verified against the

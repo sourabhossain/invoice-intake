@@ -17,14 +17,9 @@ from invoice_intake.partner import dates_in_invoice_number, tax_rate_to_code
 TAX_RATES = {"T10": 0.10, "T08": 0.08}
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# Catches era-year slips: 令和8年 read as 令和5年 is three years off, yet every
-# arithmetic check still passes.
 DEFAULT_MAX_INVOICE_AGE_DAYS = 730
 DEFAULT_MAX_FUTURE_DAYS = 30
 
-# Fallback when the model describes an alteration in its notes without setting
-# payment_details_altered. Biased towards holding: a needless review costs a
-# glance, a missed redirection costs the payment.
 _PAYMENT_TERMS = ("振込先", "口座", "銀行", "bank", "account", "transfer")
 _ALTERATION_TERMS = (
     "手書",
@@ -63,7 +58,6 @@ def _window() -> tuple[int, int]:
 
 
 def compute_amounts(lines: list[dict[str, Any]]) -> tuple[int, int, int]:
-    """Recompute subtotal/tax/total exactly the way the accounting API does."""
     subtotal = sum(item["amount"] for item in lines)
     subtotal_by_code: dict[str, int] = {}
     for item in lines:
@@ -77,7 +71,6 @@ def compute_amounts(lines: list[dict[str, Any]]) -> tuple[int, int, int]:
 
 
 def build_api_lines(lines: list[ExtractedLine]) -> list[dict[str, Any]]:
-    """Shape lines for the API. tax_code is None when the rate is unsupported."""
     return [
         {
             "description": line.description,
@@ -115,7 +108,6 @@ def _check_lines(invoice: ExtractedInvoice) -> list[VerificationIssue]:
         return [_error("NO_LINE_ITEMS", "No billable line items were extracted")]
 
     for index, line in enumerate(invoice.lines, start=1):
-        # The API rejects blank description/unit, so catch it before POSTing.
         for name, value in (("description", line.description), ("unit", line.unit)):
             if not value.strip():
                 issues.append(
@@ -136,7 +128,6 @@ def _check_lines(invoice: ExtractedInvoice) -> list[VerificationIssue]:
 
 
 def _check_dates(invoice: ExtractedInvoice, today: date) -> list[VerificationIssue]:
-    """Amount checks cannot see a wrong date, so dates need their own checks."""
     issues: list[VerificationIssue] = []
     max_age, max_future = _window()
 
@@ -178,7 +169,6 @@ def _check_dates(invoice: ExtractedInvoice, today: date) -> list[VerificationIss
             )
         )
 
-    # A second signal that does not depend on today's date.
     embedded = dates_in_invoice_number(invoice.invoice_number)
     if embedded and (issue_date.year, issue_date.month) not in embedded:
         issues.append(
@@ -193,7 +183,6 @@ def _check_dates(invoice: ExtractedInvoice, today: date) -> list[VerificationIss
 
 
 def _check_payment_integrity(invoice: ExtractedInvoice) -> list[VerificationIssue]:
-    """Hand-altered payee details are the standard invoice redirection pattern."""
     notes = invoice.confidence_notes.lower()
     described = any(term.lower() in notes for term in _PAYMENT_TERMS) and any(
         term.lower() in notes for term in _ALTERATION_TERMS
@@ -250,8 +239,6 @@ def verify_extraction(
             )
         )
 
-    # The numbers alone cannot say whether a figure was misread or was already
-    # wrong on the invoice, so point the reviewer at the likelier half.
     hint = (
         " (the line amounts do sum to the extracted subtotal, so check this figure "
         "against the paper rather than the line items)"

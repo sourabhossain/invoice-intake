@@ -23,14 +23,6 @@ class AccountingClient:
         body = response.json()
         return body["data"]["partners"]
 
-    def get_tax_codes(self) -> list[dict[str, Any]]:
-        response = httpx.get(
-            f"{self.base_url}/tax-codes", headers=self.headers, timeout=10
-        )
-        response.raise_for_status()
-        body = response.json()
-        return body["data"]["tax_codes"]
-
     def register_invoice(self, payload: dict[str, Any]) -> dict[str, Any]:
         response = httpx.post(
             f"{self.base_url}/invoices",

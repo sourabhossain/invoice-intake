@@ -109,7 +109,6 @@ def _process_one(
             )
 
         key = (partner_code, extracted.invoice_number)
-        # A duplicate verdict is only meaningful once the payee is confirmed.
         if not match_needs_review and key in registered_keys:
             result.status = "duplicate"
             result.error = "DUPLICATE_INVOICE"
@@ -190,7 +189,6 @@ def process_invoices(
 
     partners = client.get_partners()
 
-    # A resend is a business outcome to report, not a rejected POST to explain.
     registered_keys = {
         (record["partner_code"], record["invoice_number"]) for record in client.list_invoices()
     }
@@ -203,7 +201,8 @@ def process_invoices(
         if path.suffix.lower() in SUPPORTED_SUFFIXES and (only is None or only in path.name)
     )
     if not invoice_paths:
-        raise RuntimeError(f"No invoices to process in {settings.invoices_dir}")
+        scope = f" matching --only {only!r}" if only else ""
+        raise RuntimeError(f"No invoices to process in {settings.invoices_dir}{scope}")
 
     results: list[RegistrationResult] = []
     for path in invoice_paths:
