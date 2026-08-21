@@ -47,6 +47,7 @@ EXTRACTION_SCHEMA = {
         "subtotal": {"type": "integer"},
         "tax_amount": {"type": "integer"},
         "total_amount": {"type": "integer"},
+        "payment_details_altered": {"type": "boolean"},
         "confidence_notes": {"type": "string"},
     },
     "required": [
@@ -59,6 +60,7 @@ EXTRACTION_SCHEMA = {
         "subtotal",
         "tax_amount",
         "total_amount",
+        "payment_details_altered",
         "confidence_notes",
     ],
     "additionalProperties": False,
@@ -74,18 +76,17 @@ Rules:
 - If quantity or unit price is missing on the invoice, use null.
 - supplier_name is the issuer/seller (請求元), not the recipient (御中).
 - registration_no is the 登録番号 (Qualified Invoice System number) if visible.
+- description and unit must be non-empty; use "式" when no unit is printed.
 - Include every billable line item; exclude subtotal/tax/total rows from lines.
 - For multi-page PDFs, combine all pages into one invoice.
-- Read Japanese era years digit by digit: 令和N年 -> keep the printed era and
-  number exactly as shown. Do not convert to a Western year yourself, and do not
-  guess the era year from context.
-- In confidence_notes, always state explicitly if anything is handwritten,
-  stamped, struck through, or written in a different colour — especially any
-  alteration to the bank transfer details (振込先/口座), and name the field
-  affected. Also note any digit you were unsure of.
+- Keep era years exactly as printed (令和N年). Do not convert to a Western year
+  and do not infer the era year from context.
+- payment_details_altered: true if the bank transfer details (振込先/口座) carry
+  any handwritten, stamped, struck-through or differently-coloured change.
+- confidence_notes: name anything handwritten or unclear, and any digit you were
+  unsure of.
 """
 
-# Transient conditions worth another attempt; a 4xx other than 429 is not.
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
 
@@ -159,6 +160,7 @@ def _parse_payload(raw: dict[str, Any], source_file: str) -> ExtractedInvoice:
         subtotal=_parse_int(raw["subtotal"]),
         tax_amount=_parse_int(raw["tax_amount"]),
         total_amount=_parse_int(raw["total_amount"]),
+        payment_details_altered=bool(raw.get("payment_details_altered", False)),
         confidence_notes=str(raw.get("confidence_notes", "")).strip(),
         raw=raw,
     )
@@ -224,7 +226,10 @@ class InvoiceExtractor:
 
             if attempt < RETRY_ATTEMPTS:
                 delay = RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
-                print(f"  retry {attempt}/{RETRY_ATTEMPTS - 1} in {delay:.0f}s ({type(last_error).__name__})")
+                print(
+                    f"  {type(last_error).__name__}, retrying in {delay:.0f}s "
+                    f"(attempt {attempt + 1}/{RETRY_ATTEMPTS})"
+                )
                 time.sleep(delay)
 
         raise RuntimeError(f"Extraction failed for {label} after {RETRY_ATTEMPTS} attempts: {last_error}")

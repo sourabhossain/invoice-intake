@@ -41,7 +41,7 @@ python3 run.py --only invoice_09   # process just the invoices matching a substr
 invoices/  →  GPT-4o Vision  →  verify  →  match partner  →  dedupe  →  POST /invoices
                   (extract)     (local)      (master)      (local)     (accounting API)
                                     ↓             ↓            ↓
-                              human review queue (never auto-registered)
+                              held for human review (never auto-registered)
 ```
 
 ## What gates registration
@@ -55,13 +55,15 @@ the review queue with a reason — nothing questionable reaches the accounting A
 - Tax per rate (T10/T08), floored — the same arithmetic the API applies
 - Total equals subtotal + tax
 - The subtotal/tax/total read off the page agree with each other
+- Every line has a non-empty description and unit, which the API requires
 
 **Dates** — amount checks cannot see a wrong date, so these are checked separately
 - Both dates parse to a real `YYYY-MM-DD` (incl. 令和/平成/昭和 and `R8.2.5` forms)
 - `due_date` is not before `issue_date`
-- `issue_date` is within 730 days back / 30 days forward of today. This is what
-  catches an era-year misread: 令和8年 read as 令和5年 is three years off and
-  every arithmetic check still passes.
+- `issue_date` is within `INVOICE_MAX_AGE_DAYS` back / `INVOICE_MAX_FUTURE_DAYS`
+  forward of today (730 / 30 by default). This is what catches an era-year
+  misread: 令和8年 read as 令和5年 is three years off and every arithmetic check
+  still passes. Widen the window if you backfill an older archive.
 - Cross-check against a date embedded in the invoice number (warning)
 
 **Payee**
@@ -75,6 +77,9 @@ the review queue with a reason — nothing questionable reaches the accounting A
 - Handwritten or coloured alterations to bank transfer details (振込先 / 口座) hold
   the invoice unconditionally, even when the amounts are perfect. Redirecting
   payment to a hand-written account number is the standard invoice fraud pattern.
+- The extraction schema carries an explicit `payment_details_altered` boolean, so
+  this is a structured signal rather than a keyword search over free text. A
+  keyword fallback over `confidence_notes` still applies if the flag is unset.
 
 **Duplicates**
 - Checked locally against invoices already registered for that partner, before

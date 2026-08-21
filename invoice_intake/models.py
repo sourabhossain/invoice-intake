@@ -26,6 +26,7 @@ class ExtractedInvoice:
     subtotal: int
     tax_amount: int
     total_amount: int
+    payment_details_altered: bool = False
     confidence_notes: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -51,11 +52,8 @@ class RegistrationResult:
     source_file: str
     invoice_number: str
     partner_code: str | None
-    # registered    — posted to the accounting API
-    # duplicate     — already registered for this partner; deliberately not posted
-    # needs_review  — extraction is questionable; held for a human, not posted
-    # skipped       — dry run
-    # failed        — the pipeline itself broke (LLM/API/IO error)
+    # registered | duplicate | needs_review | skipped (dry run) | failed
+    # Only "failed" means the pipeline itself broke; the rest are outcomes.
     status: str
     accounting_id: str | None = None
     error: str | None = None

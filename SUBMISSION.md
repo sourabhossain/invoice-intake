@@ -89,8 +89,11 @@ locally from the extraction, and any failure holds the invoice out of the API.
 10. Match by 登録番号 → exact name → substring of ≥4 chars; ties and shorter
     overlaps are refused rather than guessed
 11. Near-miss names become a reviewer *suggestion*, never an automatic match
-12. Hand-altered bank details hold the invoice regardless of the amounts
+12. Hand-altered bank details hold the invoice regardless of the amounts, via an
+    explicit `payment_details_altered` field in the extraction schema
 13. Duplicates are detected locally, per partner, before POSTing
+14. Every line carries a non-empty description and unit, which the API demands —
+    checked locally rather than discovered as a rejected POST
 
 An invoice reaches the accounting API only if all of the above pass; everything
 else goes to the review queue with its reasons. Checks are unit-tested against

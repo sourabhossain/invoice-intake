@@ -93,8 +93,7 @@ def main() -> int:
         results = process_invoices(
             settings, reset=args.reset, dry_run=args.dry_run, only=args.only
         )
-        # Duplicates caught and invoices held for review are the pipeline working
-        # as intended, so only genuine breakage is a non-zero exit.
+        # Duplicates and review holds are the pipeline working as intended.
         failed = sum(1 for r in results if r.status == "failed")
         return 1 if failed else 0
     finally:

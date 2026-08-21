@@ -37,8 +37,15 @@ PARTNERS = [
 ]
 
 
-def line(amount: int, rate: int = 10, qty: int | None = None, price: int | None = None):
-    return ExtractedLine("品目", qty, "式", price, amount, rate)
+def line(
+    amount: int,
+    rate: int = 10,
+    qty: int | None = None,
+    price: int | None = None,
+    description: str = "品目",
+    unit: str = "式",
+):
+    return ExtractedLine(description, qty, unit, price, amount, rate)
 
 
 def invoice(
@@ -50,6 +57,7 @@ def invoice(
     due="2026-03-31",
     notes="",
     number="INV-260205",
+    altered=False,
 ):
     return ExtractedInvoice(
         source_file="t.pdf",
@@ -62,6 +70,7 @@ def invoice(
         subtotal=subtotal,
         tax_amount=tax,
         total_amount=total,
+        payment_details_altered=altered,
         confidence_notes=notes,
         raw={},
     )
@@ -194,20 +203,51 @@ class DateChecks(unittest.TestCase):
 
 
 class PaymentIntegrityChecks(unittest.TestCase):
-    def test_handwritten_bank_change_blocks_a_clean_invoice(self):
+    def test_flag_blocks_a_clean_invoice(self):
         """invoice_08: every amount reconciles; the payee account does not."""
-        result = verify_extraction(
-            invoice(notes="The bank account number (振込先) has been altered by hand."),
-            today=TODAY,
-        )
+        result = verify_extraction(invoice(altered=True), today=TODAY)
         self.assertFalse(result.passed)
         self.assertIn("PAYMENT_DETAILS_ALTERED", codes(result))
+
+    def test_notes_block_even_when_the_flag_is_unset(self):
+        for note in (
+            "The bank account number (振込先) has been altered by hand.",
+            "振込先が手書きで変更されている",
+            "Account number overwritten in red ink",
+        ):
+            with self.subTest(note=note):
+                result = verify_extraction(invoice(notes=note), today=TODAY)
+                self.assertIn("PAYMENT_DETAILS_ALTERED", codes(result))
 
     def test_unrelated_handwriting_does_not_block(self):
         result = verify_extraction(
             invoice(notes="Handwritten '至急' stamp near the recipient name."), today=TODAY
         )
         self.assertTrue(result.passed, codes(result))
+
+    def test_innocuous_wording_near_payment_terms_does_not_false_positive(self):
+        for note in (
+            "Bank transfer line includes a handling fee.",
+            "Account holder name is pending confirmation.",
+            "The bank branch is linked to the head office.",
+        ):
+            with self.subTest(note=note):
+                result = verify_extraction(invoice(notes=note), today=TODAY)
+                self.assertNotIn("PAYMENT_DETAILS_ALTERED", codes(result))
+
+
+class LineFieldChecks(unittest.TestCase):
+    def test_empty_unit_is_caught_before_posting(self):
+        result = verify_extraction(invoice(lines=[line(100_000, unit="")]), today=TODAY)
+        self.assertFalse(result.passed)
+        self.assertIn("LINE_FIELD_MISSING", codes(result))
+
+    def test_empty_description_is_caught_before_posting(self):
+        result = verify_extraction(
+            invoice(lines=[line(100_000, description="  ")]), today=TODAY
+        )
+        self.assertFalse(result.passed)
+        self.assertIn("LINE_FIELD_MISSING", codes(result))
 
 
 class PartnerMatching(unittest.TestCase):
