@@ -119,6 +119,11 @@ pipeline working as designed, not errors.
 picked up from the document (including handwritten annotations), so treat the
 directory as containing payment data rather than as scratch output.
 
+## Demo
+
+`demo/run-output.txt` is the full console output of one `python3 run.py --reset`,
+and `demo/summary.json` the machine-readable result of the same run.
+
 ## Tests
 
 Verification, date normalization and partner matching are covered by stdlib

@@ -1,0 +1,74 @@
+$ python3 run.py --reset
+
+Starting accounting API from accounting_api.py ...
+Accounting API ready at http://localhost:8080
+Cleared 0 previously registered invoice(s).
+
+--- invoice_01.pdf ---
+  OK extract: YM-2026-0107 (P-1001, registration_no=T1010001000101) 2026-01-07 total=334,400 JPY
+  REGISTERED: ACC-0001
+
+--- invoice_02.pdf ---
+  OK extract: OSK-26-0112 (P-1004, exact_name=大阪機械工業株式会社) 2026-01-12 total=1,560,988 JPY
+  REGISTERED: ACC-0002
+
+--- invoice_03.pdf ---
+  REVIEW: held for human check
+    [error] TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
+    [warning] EXTRACTED_TOTALS_INCONSISTENT: Figures read from the invoice do not add up: 115340 + 6067 != 125357
+
+--- invoice_04.jpg ---
+  OK extract: SATO-260118 (P-1002, exact_name=有限会社佐藤商店) 2026-01-18 total=240,900 JPY
+  REGISTERED: ACC-0003
+
+--- invoice_05.jpg ---
+  OK extract: MIT-2026-011 (P-1005, exact_name=みらいITソリューションズ株式会社) 2026-01-20 total=436,700 JPY
+  REGISTERED: ACC-0004
+
+--- invoice_06.jpg ---
+  OK extract: YM-2026-0122 (P-1001, registration_no=T1010001000101) 2026-01-22 total=102,300 JPY
+  REGISTERED: ACC-0005
+
+--- invoice_07.jpg ---
+  DUPLICATE: YM-2026-0107 is already registered for P-1001 — not posted
+
+--- invoice_08.jpg ---
+  REVIEW: held for human check
+    [error] PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered — confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
+
+--- invoice_09.pdf ---
+  REVIEW: held for human check
+    [error] TOTAL_MISMATCH: Extracted total 147497 != 147496 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
+    [warning] EXTRACTED_TOTALS_INCONSISTENT: Figures read from the invoice do not add up: 134088 + 13408 != 147497
+
+--- invoice_10.jpg ---
+  REVIEW: no partner match for '新星ロジスティクス株式会社'
+
+--- invoice_11.jpg ---
+  REVIEW: held for human check
+    [error] ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old — likely an era-year or digit misread
+    [warning] DATE_NUMBER_DISAGREEMENT: issue_date 2020-02-05 disagrees with the date implied by invoice_number 'SATO-260205' ([(2026, 2)])
+
+--- invoice_12.jpg ---
+  OK extract: MIT-2026-014 (P-1005, exact_name=みらいITソリューションズ株式会社) 2026-02-10 total=594,000 JPY
+  REGISTERED: ACC-0006
+
+=== Result ===
+  registered    6
+  duplicate     1
+  needs_review  5
+
+=== Not registered ===
+  invoice_03.pdf [needs_review] TAX_MISMATCH
+      - TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
+  invoice_07.jpg [duplicate] DUPLICATE_INVOICE
+  invoice_08.jpg [needs_review] PAYMENT_DETAILS_ALTERED
+      - PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered — confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details.
+  invoice_09.pdf [needs_review] TOTAL_MISMATCH
+      - TOTAL_MISMATCH: Extracted total 147497 != 147496 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)
+  invoice_10.jpg [needs_review] PARTNER_NOT_FOUND
+      - PARTNER_NOT_FOUND: '新星ロジスティクス株式会社' (no_match)
+  invoice_11.jpg [needs_review] ISSUE_DATE_IMPLAUSIBLE
+      - ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old — likely an era-year or digit misread
+
+Details saved to /Users/sourab/Downloads/take-home/output/

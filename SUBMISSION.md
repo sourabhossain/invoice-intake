@@ -27,23 +27,47 @@ The core problem is not just OCR — it is **trustworthy automation**: reducing 
 | How are invoices received (email, folder, ERP)? | Batch folder of files | Matches sample data layout |
 | What if supplier is not in partner master? | Skip and report PARTNER_NOT_FOUND | API rejects unknown partners anyway |
 | Should we trust invoice-printed totals or recalculate? | Recalculate from lines using API tax rules | API returns AMOUNT_MISMATCH if totals differ |
+| A supplier hand-wrote a new bank account on the invoice — pay it or stop? | Hold for human confirmation with the supplier; never auto-register | Every amount reconciles perfectly, so no arithmetic check can catch it. This is the redirection fraud pattern, and it appears in the sample data (`invoice_08`) |
+| The supplier's own total is ¥1 above subtotal + tax — pay the printed figure or our recomputation? | Hold for review rather than silently choosing either | The API would happily accept our recomputation, but paying a figure the supplier did not invoice creates a reconciliation gap nobody asked for |
+| How far back can a legitimately old invoice be? | 730 days, configurable via `INVOICE_MAX_AGE_DAYS` | Needed *some* date sanity check, because a misread era year (令和8 → 令和5) passes every amount check silently |
 
 ## 3. Scoping decisions
 
+I spent the first pass getting extraction and registration working end to end, then
+spent the rest on the part that actually matters: **making the pipeline refuse to
+register what it cannot verify.** That reordering came from the data — the first
+working version registered two invoices with wrong or unsafe data and reported
+them as successes.
+
 **What you built**
 
-- LLM vision extraction for PDF and scanned JPG invoices
-- Amount verification (line math + API-compatible tax calculation)
-- Partner matching by registration number and name/aliases
-- Auto-start accounting API + single-command pipeline (`python3 run.py`)
-- Per-invoice JSON output and summary for audit
+- LLM vision extraction for PDF and scanned JPG invoices (PyMuPDF renders pages)
+- Amount verification: line math, subtotal, per-code floored tax, total, and
+  internal consistency of the three printed figures
+- Date verification: era-year conversion (令和/平成/昭和), plausibility window, and
+  a cross-check against the date embedded in the invoice number
+- Payment-integrity gate: hand-altered bank details hold the invoice even when
+  every amount reconciles
+- Partner matching by 登録番号 → exact name → bounded substring, with near-miss
+  names surfaced as reviewer *suggestions* rather than automatic matches
+- Local duplicate detection per partner, before POSTing — re-runs are idempotent
+- A review queue: every non-registered invoice reports why, in the console and in
+  `output/summary.json`
+- Auto-start accounting API + single command (`python3 run.py --reset`), with a
+  dependency preflight so a missing venv gives instructions, not a traceback
+- 27 unit tests over the verification rules, needing no API key or network
 
 **What you left out, and why**
 
-- Human review web UI — time; JSON output + skip-on-failure is sufficient for demo
-- Low-confidence scoring thresholds — used binary pass/fail verification instead
-- Email ingestion / queue — out of scope for sample folder
-- Detailed cost dashboard — documented in section 7 instead
+- Human review web UI — the highest-value next step, but the review *queue* with
+  machine-readable reasons is the part a UI needs underneath, so I built that first
+- Confidence scoring — binary pass/fail plus specific error codes gives a reviewer
+  more to act on than a number would, at this scale
+- Second-pass re-extraction on disputed fields — would likely have fixed the two
+  extraction errors I found, but I chose to *detect* reliably before *correcting*
+- Email ingestion / queue — out of scope for a sample folder
+- Batch-relative date checking (flag the outlier against the rest of the batch) —
+  more robust than an absolute window, but needs a two-pass restructure
 
 ## 4. Design and technology choices
 
@@ -51,13 +75,21 @@ The core problem is not just OCR — it is **trustworthy automation**: reducing 
 
 **Chose:**
 - **Python** — fast integration, good PDF/image libraries
-- **OpenAI GPT-4o** — strong Japanese document understanding, native vision + JSON schema
+- **OpenAI GPT-4o** — strong Japanese document understanding, native vision + JSON
+  schema. Paid API on my own key; there are only 12 invoices so cost is negligible
+- **Structured output over free text** — `strict` JSON schema, including a
+  `payment_details_altered` boolean, so the tampering signal is a typed field
+  rather than a keyword search over prose
 - **PyMuPDF** — render scanned PDFs to images without extra dependencies
-- **httpx** — simple API client
+- **httpx** — simple API client; retries with backoff on 429/5xx only
 
 **Decided against:**
 - Traditional OCR-only (Tesseract) — weak on layout variation and handwriting
 - Sending extracted totals directly to API — API recalculates and rejects mismatches
+- Trusting the model's own confidence prose as the tampering signal — too fragile;
+  a typed boolean with a keyword fallback is harder to miss
+- Auto-correcting a figure the pipeline believes is wrong — detection is reliable,
+  correction is not, and this is money
 - Changing the mock API — assignment forbids it
 
 ## 5. How you used AI, and how you checked it
@@ -69,36 +101,30 @@ The core problem is not just OCR — it is **trustworthy automation**: reducing 
 
 **How you verified the output**
 
-Nothing the model returns is trusted on its own. Each check below is recomputed
-locally from the extraction, and any failure holds the invoice out of the API.
+Nothing the model returns is trusted on its own. Everything is recomputed locally,
+and any failure holds the invoice out of the API.
 
-*Amounts* — recomputed from the line items, never taken from the printed totals:
-1. **Line math:** `quantity × unit_price == amount` when both present (warning)
-2. **Subtotal:** sum of line amounts
-3. **Tax:** per tax code, `floor(subtotal × rate)` — the same arithmetic as the API
-4. **Total:** subtotal + tax
-5. **Internal consistency:** the three figures read off the page agree with each other
+The check I would defend first is **recomputing tax per code from the line items**
+(`floor(subtotal × rate)`, mirroring the API) instead of reading the printed 消費税.
+It is the one check that catches a misread the model has no way to self-report: the
+figure looks perfectly plausible on its own and only contradicts the lines it is
+supposed to summarise. It caught `invoice_03`.
 
-*Dates* — a wrong date passes every arithmetic check, so it needs its own checks:
-6. Both dates parse to a real `YYYY-MM-DD` (令和/平成/昭和 and `R8.2.5` included)
-7. `due_date` is not before `issue_date`
-8. `issue_date` falls in a plausibility window (730 days back / 30 forward)
-9. Cross-check against any date embedded in the invoice number (warning)
+- **Amounts** — line math (warning), subtotal from lines, per-code floored tax,
+  total, and whether the three printed figures agree with each other at all.
+- **Dates** — both parse to a real `YYYY-MM-DD` (令和/平成/昭和, `R8.2.5`); due not
+  before issue; issue date inside a plausibility window; cross-check against a date
+  embedded in the invoice number. Dates need their own checks because a wrong date
+  passes every arithmetic check untouched.
+- **Payee** — 登録番号 → exact name → substring of ≥4 chars; ties and short overlaps
+  refused rather than guessed; near-misses surfaced as suggestions, never matches.
+- **Payment integrity** — hand-altered bank details hold the invoice regardless of
+  the amounts, driven by a typed `payment_details_altered` field.
+- **Pre-empting the API** — local duplicate detection per partner, and non-empty
+  description/unit, so these surface as reasons rather than rejected POSTs.
 
-*Payee and payment integrity:*
-10. Match by 登録番号 → exact name → substring of ≥4 chars; ties and shorter
-    overlaps are refused rather than guessed
-11. Near-miss names become a reviewer *suggestion*, never an automatic match
-12. Hand-altered bank details hold the invoice regardless of the amounts, via an
-    explicit `payment_details_altered` field in the extraction schema
-13. Duplicates are detected locally, per partner, before POSTing
-14. Every line carries a non-empty description and unit, which the API demands —
-    checked locally rather than discovered as a rejected POST
-
-An invoice reaches the accounting API only if all of the above pass; everything
-else goes to the review queue with its reasons. Checks are unit-tested against
-the failure modes that previously crashed the run (0% tax lines, unparseable
-dates, empty line lists).
+27 unit tests cover these rules, including the three inputs that used to crash the
+run outright (0% tax lines, unparseable dates, empty line lists).
 
 **A case where the AI got it wrong**
 
@@ -142,6 +168,14 @@ transfer details now holds the invoice unconditionally.
 6 of 12 registered automatically, 1 duplicate blocked, 5 held for human review.
 No invoice was registered with data I could not verify against the document.
 
+The table below is **one representative run** (`output/summary.json` from the log in
+`demo/`). Extraction is not fully deterministic even at `temperature=0`:
+`invoice_03` sometimes reads cleanly and registers, and `invoice_11`'s misread era
+year came out as 令和5 on one run and 令和2 on another. The *verification* outcome is
+stable — what varies is which invoice needs review, not whether a bad one slips
+through. I regard that instability as the main argument for the whole checking
+layer, so I have left it visible rather than reporting a best-of run.
+
 | Invoice | Result | How you handled it |
 |---|---|---|
 | invoice_01.pdf | registered `ACC-0001` | Matched P-1001 by 登録番号; amounts reconciled |
@@ -170,14 +204,47 @@ running the same invoice through two consecutive runs without `--reset`.
 
 ## 7. Cost, limits, and risk in production
 
-- **Cost per invoice:** ~$0.02–0.05 (1–2 GPT-4o vision calls depending on PDF pages)
-- **Monthly cost at 1,000 invoices/month:** ~$20–50 LLM + negligible compute
-- **Processing time per invoice:** ~5–15 seconds (LLM latency dominates)
-- **Where this breaks first:** handwritten annotations, unknown suppliers, multi-page complex tables, duplicate submissions
-- **How you would find out if something was registered incorrectly:** reconciliation report comparing extracted JSON vs API records; spot-check invoices flagged with verification warnings
+- **Cost per invoice:** ~$0.01–0.03. One vision call per page at 200 DPI is roughly
+  1–1.5k input tokens plus ~0.5k output; multi-page PDFs scale linearly. Retries are
+  rare and capped at 3. Worth re-measuring against current GPT-4o pricing before
+  quoting this to the client.
+- **Monthly cost at 1,000 invoices/month:** ~$10–30 in LLM calls, compute negligible.
+  The real cost at that volume is **human review time**, not tokens: at the 5-in-12
+  hold rate seen here, roughly 400 invoices/month reach a person. Driving that rate
+  down is where the money is.
+- **Processing time per invoice:** ~5–15 seconds, LLM latency dominant. Sequential
+  today; the batch parallelises trivially since invoices are independent.
+- **Where this breaks first:**
+  1. **Single-digit misreads inside the plausibility window.** 令和8 → 令和5 is caught
+     because it lands 3 years out; 令和8 → 令和7 would not be. The invoice-number
+     cross-check only helps for suppliers who embed the date.
+  2. **Documents with several 消費税 rows.** `invoice_03` is the one the pipeline got
+     wrong in both directions — partial tax capture *and* a one-character supplier
+     misread on the same document.
+  3. **Extraction non-determinism.** The same file can extract differently run to
+     run, so "it worked yesterday" is not evidence.
+  4. **Every new supplier needs a partner-master entry first.** The pipeline cannot
+     create one, so onboarding stays manual.
+  5. **Tampering the model does not remark on.** A subtle alteration that it reads
+     as clean print bypasses the payment-integrity gate entirely.
+- **How you would find out if something was registered incorrectly:** a daily
+  reconciliation job re-reading `output/*.json` against `GET /invoices`, alerting on
+  any field drift; a weekly sample of registered invoices re-verified against the
+  source image; and alerting on the *hold rate* itself — a sudden drop means the
+  checks stopped firing, which is more dangerous than a spike.
 
 ## 8. What you would do with another 8 hours
 
-1. **Human review UI** — let accounting staff correct extractions before POST
-2. **Confidence scoring** — route low-confidence extractions to review queue
-3. **Idempotency + monitoring** — detect duplicates, alert on registration failures, daily reconciliation dashboard
+1. **Human review UI over the existing queue.** Every held invoice already carries
+   machine-readable reasons, a computed-vs-printed diff, and a suggested partner —
+   the data a correction screen needs is there, only the screen is missing. This is
+   first because 5 of 12 invoices need a person, and right now that person reads JSON.
+2. **Targeted re-extraction on disputed fields.** When a check fails, re-ask the
+   model about *only* the contested figure with a cropped region, and require two
+   runs to agree. Both extraction errors I found (`invoice_03` tax rows,
+   `invoice_11` era year) were single-field misreads on documents that were
+   otherwise read perfectly, so a narrow second pass should convert most holds into
+   automatic registrations. Second because it needs the UI to fall back to.
+3. **Reconciliation and hold-rate monitoring.** The daily drift job and hold-rate
+   alerting described in section 7. Third not because it matters least, but because
+   with 12 invoices a month-end eyeball still works; at 1,000 it does not.

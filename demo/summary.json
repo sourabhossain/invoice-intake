@@ -1,0 +1,132 @@
+[
+  {
+    "source_file": "invoice_01.pdf",
+    "invoice_number": "YM-2026-0107",
+    "partner_code": "P-1001",
+    "match_reason": "registration_no=T1010001000101",
+    "status": "registered",
+    "accounting_id": "ACC-0001",
+    "error": null,
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_02.pdf",
+    "invoice_number": "OSK-26-0112",
+    "partner_code": "P-1004",
+    "match_reason": "exact_name=大阪機械工業株式会社",
+    "status": "registered",
+    "accounting_id": "ACC-0002",
+    "error": null,
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_03.pdf",
+    "invoice_number": "TF-2026-0115",
+    "partner_code": "P-1003",
+    "match_reason": "registration_no=T3030003000303",
+    "status": "needs_review",
+    "accounting_id": null,
+    "error": "TAX_MISMATCH",
+    "review_reasons": [
+      "TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)"
+    ]
+  },
+  {
+    "source_file": "invoice_04.jpg",
+    "invoice_number": "SATO-260118",
+    "partner_code": "P-1002",
+    "match_reason": "exact_name=有限会社佐藤商店",
+    "status": "registered",
+    "accounting_id": "ACC-0003",
+    "error": null,
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_05.jpg",
+    "invoice_number": "MIT-2026-011",
+    "partner_code": "P-1005",
+    "match_reason": "exact_name=みらいITソリューションズ株式会社",
+    "status": "registered",
+    "accounting_id": "ACC-0004",
+    "error": null,
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_06.jpg",
+    "invoice_number": "YM-2026-0122",
+    "partner_code": "P-1001",
+    "match_reason": "registration_no=T1010001000101",
+    "status": "registered",
+    "accounting_id": "ACC-0005",
+    "error": null,
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_07.jpg",
+    "invoice_number": "YM-2026-0107",
+    "partner_code": "P-1001",
+    "match_reason": "exact_name=株式会社山田製作所",
+    "status": "duplicate",
+    "accounting_id": null,
+    "error": "DUPLICATE_INVOICE",
+    "review_reasons": []
+  },
+  {
+    "source_file": "invoice_08.jpg",
+    "invoice_number": "TF-2026-0125",
+    "partner_code": "P-1003",
+    "match_reason": "exact_name=東京フーズ株式会社",
+    "status": "needs_review",
+    "accounting_id": null,
+    "error": "PAYMENT_DETAILS_ALTERED",
+    "review_reasons": [
+      "PAYMENT_DETAILS_ALTERED: Bank/transfer details appear hand-altered — confirm with the supplier through a known channel before paying. Note: Handwritten change in bank details."
+    ]
+  },
+  {
+    "source_file": "invoice_09.pdf",
+    "invoice_number": "OSK-26-0128",
+    "partner_code": "P-1004",
+    "match_reason": "exact_name=大阪機械工業株式会社",
+    "status": "needs_review",
+    "accounting_id": null,
+    "error": "TOTAL_MISMATCH",
+    "review_reasons": [
+      "TOTAL_MISMATCH: Extracted total 147497 != 147496 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)"
+    ]
+  },
+  {
+    "source_file": "invoice_10.jpg",
+    "invoice_number": "SSL-2026-0203",
+    "partner_code": null,
+    "match_reason": "no_match",
+    "status": "needs_review",
+    "accounting_id": null,
+    "error": "PARTNER_NOT_FOUND",
+    "review_reasons": [
+      "PARTNER_NOT_FOUND: '新星ロジスティクス株式会社' (no_match)"
+    ]
+  },
+  {
+    "source_file": "invoice_11.jpg",
+    "invoice_number": "SATO-260205",
+    "partner_code": "P-1002",
+    "match_reason": "registration_no=T2020002000202",
+    "status": "needs_review",
+    "accounting_id": null,
+    "error": "ISSUE_DATE_IMPLAUSIBLE",
+    "review_reasons": [
+      "ISSUE_DATE_IMPLAUSIBLE: issue_date 2020-02-05 is more than 730 days old — likely an era-year or digit misread"
+    ]
+  },
+  {
+    "source_file": "invoice_12.jpg",
+    "invoice_number": "MIT-2026-014",
+    "partner_code": "P-1005",
+    "match_reason": "exact_name=みらいITソリューションズ株式会社",
+    "status": "registered",
+    "accounting_id": "ACC-0006",
+    "error": null,
+    "review_reasons": []
+  }
+]
