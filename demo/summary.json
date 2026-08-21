@@ -23,12 +23,11 @@
     "source_file": "invoice_03.pdf",
     "invoice_number": "TF-2026-0115",
     "partner_code": "P-1003",
-    "match_reason": "fuzzy_suggestion=東京フーズ株式会社 (similarity 0.80)",
+    "match_reason": "registration_no=T3030003000303",
     "status": "needs_review",
     "accounting_id": null,
-    "error": "PARTNER_MATCH_UNCERTAIN",
+    "error": "TAX_MISMATCH",
     "review_reasons": [
-      "PARTNER_MATCH_UNCERTAIN: '東京アーズ株式会社' -> P-1003 via fuzzy_suggestion=東京フーズ株式会社 (similarity 0.80)",
       "TAX_MISMATCH: Extracted tax 6067 != 10017 recomputed from the lines under API tax rules (the line amounts do sum to the extracted subtotal, so check this figure against the paper rather than the line items)"
     ]
   },
