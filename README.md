@@ -23,12 +23,24 @@ and `run.py` prints the exact commands to run instead of an import traceback.
 
 ## Flow
 
+Every invoice takes the same path, and three gates can divert it before it reaches
+the accounting API.
+
+```mermaid
+flowchart LR
+    IN["invoices/<br/>PDF and scans"] --> EX["Extract<br/>GPT-4o vision"]
+    EX --> VF["Recompute<br/>amounts and dates"]
+    VF --> PY{"Payee resolved<br/>with certainty?"}
+    PY -->|no| RV(["needs_review"])
+    PY -->|yes| DUP{"Already registered<br/>for that partner?"}
+    DUP -->|yes| DU(["duplicate"])
+    DUP -->|no| CK{"Any blocking<br/>check failed?"}
+    CK -->|yes| RV
+    CK -->|no| OK(["registered"])
 ```
-invoices/ → extract → verify → match partner → dedupe → POST /invoices
-            (GPT-4o)  (local)     (master)      (local)   (accounting API)
-                         ↓           ↓            ↓
-                  review queue: held, never auto-registered
-```
+
+Extraction is the only step that leaves the machine. Everything after it is local
+arithmetic and lookups, so a wrong reading is caught without a second API call.
 
 ## Verification
 
