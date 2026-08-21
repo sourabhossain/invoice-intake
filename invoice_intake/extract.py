@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
 import pymupdf as fitz
-from openai import OpenAI
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
 from invoice_intake.models import ExtractedInvoice, ExtractedLine
 from invoice_intake.partner import normalize_date
@@ -75,8 +76,18 @@ Rules:
 - registration_no is the 登録番号 (Qualified Invoice System number) if visible.
 - Include every billable line item; exclude subtotal/tax/total rows from lines.
 - For multi-page PDFs, combine all pages into one invoice.
-- Note anything unclear or handwritten in confidence_notes.
+- Read Japanese era years digit by digit: 令和N年 -> keep the printed era and
+  number exactly as shown. Do not convert to a Western year yourself, and do not
+  guess the era year from context.
+- In confidence_notes, always state explicitly if anything is handwritten,
+  stamped, struck through, or written in a different colour — especially any
+  alteration to the bank transfer details (振込先/口座), and name the field
+  affected. Also note any digit you were unsure of.
 """
+
+# Transient conditions worth another attempt; a 4xx other than 429 is not.
+RETRY_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 
 def _render_pdf_pages(path: Path, dpi: int = 200) -> list[bytes]:
@@ -174,25 +185,46 @@ class InvoiceExtractor:
             media_type = "image/jpeg" if path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
             user_content.append(_image_content(image_bytes, media_type=media_type))
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "invoice_extraction",
-                    "strict": True,
-                    "schema": EXTRACTION_SCHEMA,
-                },
-            },
-            temperature=0,
-        )
-
-        content = response.choices[0].message.content
-        if not content:
-            raise RuntimeError(f"No extraction result for {path.name}")
+        content = self._complete_with_retry(user_content, path.name)
         raw = json.loads(content)
         return _parse_payload(raw, path.name)
+
+    def _complete_with_retry(self, user_content: list[dict[str, Any]], label: str) -> str:
+        last_error: Exception | None = None
+
+        for attempt in range(1, RETRY_ATTEMPTS + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "invoice_extraction",
+                            "strict": True,
+                            "schema": EXTRACTION_SCHEMA,
+                        },
+                    },
+                    temperature=0,
+                )
+                content = response.choices[0].message.content
+                if not content:
+                    raise RuntimeError(f"Empty extraction result for {label}")
+                return content
+            except (RateLimitError, APIConnectionError, APITimeoutError) as exc:
+                last_error = exc
+            except APIStatusError as exc:
+                # Auth, quota and bad-request failures will not fix themselves.
+                if exc.status_code < 500:
+                    raise
+                last_error = exc
+
+            if attempt < RETRY_ATTEMPTS:
+                delay = RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                print(f"  retry {attempt}/{RETRY_ATTEMPTS - 1} in {delay:.0f}s ({type(last_error).__name__})")
+                time.sleep(delay)
+
+        raise RuntimeError(f"Extraction failed for {label} after {RETRY_ATTEMPTS} attempts: {last_error}")

@@ -70,6 +70,11 @@ def main() -> int:
         action="store_true",
         help="Do not auto-start accounting_api.py (fail if API is down)",
     )
+    parser.add_argument(
+        "--only",
+        metavar="SUBSTRING",
+        help="Process only invoices whose filename contains SUBSTRING (e.g. --only 09)",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -85,7 +90,11 @@ def main() -> int:
             api_proc = ensure_api_running(settings.api_url)
             started_api = api_proc is not None
 
-        results = process_invoices(settings, reset=args.reset, dry_run=args.dry_run)
+        results = process_invoices(
+            settings, reset=args.reset, dry_run=args.dry_run, only=args.only
+        )
+        # Duplicates caught and invoices held for review are the pipeline working
+        # as intended, so only genuine breakage is a non-zero exit.
         failed = sum(1 for r in results if r.status == "failed")
         return 1 if failed else 0
     finally:

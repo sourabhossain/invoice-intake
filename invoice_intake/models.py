@@ -51,7 +51,14 @@ class RegistrationResult:
     source_file: str
     invoice_number: str
     partner_code: str | None
-    status: str  # "registered" | "skipped" | "failed"
+    # registered    — posted to the accounting API
+    # duplicate     — already registered for this partner; deliberately not posted
+    # needs_review  — extraction is questionable; held for a human, not posted
+    # skipped       — dry run
+    # failed        — the pipeline itself broke (LLM/API/IO error)
+    status: str
     accounting_id: str | None = None
     error: str | None = None
     verification: VerificationResult | None = None
+    match_reason: str | None = None
+    review_reasons: list[str] = field(default_factory=list)

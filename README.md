@@ -29,25 +29,69 @@ python3 run.py --reset
 ## Options
 
 ```bash
-python3 run.py --reset          # clear API records, then process all invoices
-python3 run.py --dry-run        # extract + verify only, no API registration
-python3 run.py --no-api-start   # fail if accounting API is not already running
+python3 run.py --reset             # clear API records, then process all invoices
+python3 run.py --dry-run           # extract + verify only, no API registration
+python3 run.py --no-api-start      # fail if accounting API is not already running
+python3 run.py --only invoice_09   # process just the invoices matching a substring
 ```
 
 ## Architecture
 
 ```
-invoices/  →  GPT-4o Vision  →  verify amounts  →  match partner  →  POST /invoices
-                  (extract)        (local)           (master)          (accounting API)
+invoices/  →  GPT-4o Vision  →  verify  →  match partner  →  dedupe  →  POST /invoices
+                  (extract)     (local)      (master)      (local)     (accounting API)
+                                    ↓             ↓            ↓
+                              human review queue (never auto-registered)
 ```
 
-**Verification checks (before registration):**
-- Each line: `quantity × unit_price == amount` when both are present
-- Subtotal equals sum of line amounts
-- Tax computed per rate (T10/T08), floored, matching API rules
-- Total equals subtotal + tax
+## What gates registration
 
-If verification fails, the invoice is skipped and logged — it is not sent to the API.
+An invoice is registered only if every check below passes. Anything else lands in
+the review queue with a reason — nothing questionable reaches the accounting API.
+
+**Amounts**
+- Each line: `quantity × unit_price == amount` when both are present (warning)
+- Subtotal equals the sum of line amounts
+- Tax per rate (T10/T08), floored — the same arithmetic the API applies
+- Total equals subtotal + tax
+- The subtotal/tax/total read off the page agree with each other
+
+**Dates** — amount checks cannot see a wrong date, so these are checked separately
+- Both dates parse to a real `YYYY-MM-DD` (incl. 令和/平成/昭和 and `R8.2.5` forms)
+- `due_date` is not before `issue_date`
+- `issue_date` is within 730 days back / 30 days forward of today. This is what
+  catches an era-year misread: 令和8年 read as 令和5年 is three years off and
+  every arithmetic check still passes.
+- Cross-check against a date embedded in the invoice number (warning)
+
+**Payee**
+- Matched by 登録番号, then exact name, then a substring of at least 4 characters.
+  Shorter overlaps are refused and ties between two partners are refused, because
+  a wrong match here means paying the wrong company.
+- A near-miss name (≥0.80 similarity) becomes a *suggestion* for the reviewer,
+  never an automatic match.
+
+**Fraud / tampering**
+- Handwritten or coloured alterations to bank transfer details (振込先 / 口座) hold
+  the invoice unconditionally, even when the amounts are perfect. Redirecting
+  payment to a hand-written account number is the standard invoice fraud pattern.
+
+**Duplicates**
+- Checked locally against invoices already registered for that partner, before
+  POSTing. Re-running the pipeline is safe: nothing is registered twice.
+
+## Result statuses
+
+| Status | Meaning |
+|---|---|
+| `registered` | Posted to the accounting API |
+| `duplicate` | Already registered for this partner; deliberately not posted |
+| `needs_review` | Held for a human, with reasons; not posted |
+| `skipped` | `--dry-run` only |
+| `failed` | The pipeline itself broke (LLM, API or IO error) |
+
+Exit code is non-zero only for `failed`. Duplicates and review holds are the
+pipeline working as designed, not errors.
 
 ## Requirements
 
@@ -59,8 +103,21 @@ If verification fails, the invoice is skipped and logged — it is not sent to t
 
 | Path | Contents |
 |---|---|
-| `output/invoice_XX.json` | Raw extraction, partner match, verification result |
-| `output/summary.json` | Registration status for all invoices |
+| `output/invoice_XX.json` | Raw extraction, normalized fields, partner match, verification issues, status |
+| `output/summary.json` | Status and review reasons for all invoices |
+
+`output/` is gitignored. Note that extractions can contain supplier bank details
+picked up from the document (including handwritten annotations), so treat the
+directory as containing payment data rather than as scratch output.
+
+## Tests
+
+Verification, date normalization and partner matching are covered by stdlib
+`unittest` — no API key or network needed:
+
+```bash
+python3 -m unittest discover -s tests -t .
+```
 
 ## Manual API start (optional)
 
