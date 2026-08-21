@@ -121,8 +121,11 @@ directory as containing payment data rather than as scratch output.
 
 ## Demo
 
-`demo/run-output.txt` is the full console output of one `python3 run.py --reset`,
-and `demo/summary.json` the machine-readable result of the same run.
+| Path | Contents |
+|---|---|
+| `demo/demo-run.mov` | Screen recording of a full run (41s) |
+| `demo/run-output.txt` | Full console output of one `python3 run.py --reset` |
+| `demo/summary.json` | Machine-readable result of that run |
 
 ## Tests
 
